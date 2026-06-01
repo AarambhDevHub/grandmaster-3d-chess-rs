@@ -5,12 +5,12 @@ edition = "2024"
 publish = false
 
 [dependencies]
-animato = { path = "../animato/crates/animato", features = ["leptos-csr", "wasm"] }
+animato = { version = "1.4.0", features = ["leptos-csr", "wasm"] }
 chess = "3.2.0"
 console_error_panic_hook = "0.1"
 js-sys = "0.3"
 leptos = { version = "0.8.19", features = ["csr"] }
-scenix = { path = "../scenix/crates/scenix", features = ["renderer", "animato", "wasm", "raycaster", "post"] }
+scenix = { version = "1.1.0", features = ["renderer", "animato", "wasm", "raycaster", "post"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 wasm-bindgen = "0.2"
