@@ -1,0 +1,10 @@
+[build]
+target = "index.html"
+dist = "dist"
+public_url = "/"
+
+[tools]
+tailwindcss = "4.0.17"
+
+[watch]
+watch = ["src", "index.html", "Cargo.toml", "Trunk.toml"]

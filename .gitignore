@@ -1,0 +1,43 @@
+# Rust build output
+/target
+**/target/
+dist/
+
+
+# IDE
+.idea/
+.vscode/settings.json
+.vscode/*.log
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Benchmarks output
+criterion/
+
+# Coverage
+lcov.info
+*.profraw
+*.profdata
+coverage/
+
+# wasm-pack
+pkg/
+wasm-pack.log
+website/dist/
+
+# npm (wasm examples)
+node_modules/
+
+# Environment / secrets
+.env
+.env.local
+
+# Assets (large binary files — reference via Git LFS or external CDN)
+assets/*.glb
+assets/*.fbx
+assets/*.hdr
+assets/*.exr
+assets/*.ktx2
