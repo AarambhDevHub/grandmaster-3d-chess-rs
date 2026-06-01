@@ -10,35 +10,11 @@ pub fn choose_bot_move(board: &Board, difficulty: Difficulty) -> Option<ChessMov
 
     order_moves(board, &mut moves);
 
-    if difficulty == Difficulty::Easy {
-        return Some(choose_easy(board, &moves));
+    match difficulty {
+        Difficulty::Easy => Some(choose_easy(board, &moves)),
+        Difficulty::Medium => Some(choose_humanized_search(board, &moves, BotStyle::medium())),
+        Difficulty::Hard => Some(choose_humanized_search(board, &moves, BotStyle::hard())),
     }
-
-    let depth = difficulty.depth();
-    let maximizing = board.side_to_move() == Color::White;
-    let mut best_move = moves[0];
-    let mut best_score = if maximizing { i32::MIN } else { i32::MAX };
-
-    for mv in moves {
-        let next = board.make_move_new(mv);
-        let score = minimax(
-            &next,
-            depth.saturating_sub(1),
-            i32::MIN + 1,
-            i32::MAX - 1,
-            next.side_to_move() == Color::White,
-        );
-        if maximizing && score > best_score {
-            best_score = score;
-            best_move = mv;
-        }
-        if !maximizing && score < best_score {
-            best_score = score;
-            best_move = mv;
-        }
-    }
-
-    Some(best_move)
 }
 
 pub fn evaluate_board(board: &Board) -> i32 {
@@ -120,6 +96,119 @@ fn minimax(board: &Board, depth: u8, mut alpha: i32, mut beta: i32, maximizing: 
         }
         value
     }
+}
+
+#[derive(Clone, Copy)]
+struct BotStyle {
+    depth: u8,
+    best_chance: f64,
+    second_chance: f64,
+    third_chance: f64,
+    mistake_chance: f64,
+    pool: usize,
+}
+
+impl BotStyle {
+    fn medium() -> Self {
+        Self {
+            depth: 1,
+            best_chance: 0.34,
+            second_chance: 0.28,
+            third_chance: 0.18,
+            mistake_chance: 0.24,
+            pool: 6,
+        }
+    }
+
+    fn hard() -> Self {
+        Self {
+            depth: 2,
+            best_chance: 0.48,
+            second_chance: 0.25,
+            third_chance: 0.13,
+            mistake_chance: 0.12,
+            pool: 4,
+        }
+    }
+}
+
+fn choose_humanized_search(board: &Board, moves: &[ChessMove], style: BotStyle) -> ChessMove {
+    let mut ranked = ranked_moves(board, moves, style.depth);
+    if ranked.is_empty() {
+        return moves[0];
+    }
+    if random_unit() < style.mistake_chance && ranked.len() > 3 {
+        return choose_soft_mistake(&ranked, style.pool);
+    }
+
+    let pool = style.pool.min(ranked.len()).max(1);
+    ranked.truncate(pool);
+    let roll = random_unit();
+    let index = if roll < style.best_chance || ranked.len() == 1 {
+        0
+    } else if roll < style.best_chance + style.second_chance || ranked.len() == 2 {
+        1
+    } else if roll < style.best_chance + style.second_chance + style.third_chance
+        || ranked.len() == 3
+    {
+        2
+    } else {
+        3 + random_index(ranked.len().saturating_sub(3))
+    };
+    ranked[index.min(ranked.len() - 1)].0
+}
+
+fn ranked_moves(board: &Board, moves: &[ChessMove], depth: u8) -> Vec<(ChessMove, i32)> {
+    let side = board.side_to_move();
+    let mut ranked: Vec<(ChessMove, i32)> = moves
+        .iter()
+        .copied()
+        .map(|mv| {
+            let next = board.make_move_new(mv);
+            let raw = if depth <= 1 {
+                evaluate_board(&next)
+            } else {
+                minimax(
+                    &next,
+                    depth - 1,
+                    i32::MIN + 1,
+                    i32::MAX - 1,
+                    next.side_to_move() == Color::White,
+                )
+            };
+            let perspective = if side == Color::White { raw } else { -raw };
+            (mv, perspective + human_tactical_bonus(board, mv))
+        })
+        .collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1));
+    ranked
+}
+
+fn choose_soft_mistake(ranked: &[(ChessMove, i32)], pool: usize) -> ChessMove {
+    let start = pool.min(ranked.len().saturating_sub(1));
+    let end = (start + 5).min(ranked.len());
+    if start >= end {
+        return ranked[random_index(ranked.len())].0;
+    }
+    ranked[start + random_index(end - start)].0
+}
+
+fn human_tactical_bonus(board: &Board, mv: ChessMove) -> i32 {
+    let mut score = 0;
+    if let Some(captured) = board.piece_on(mv.get_dest()) {
+        score += piece_value(captured) / 6;
+    }
+    if let Some(promotion) = mv.get_promotion() {
+        score += piece_value(promotion) / 5;
+    }
+    let next = board.make_move_new(mv);
+    if next.checkers().popcnt() > 0 {
+        score += 18;
+    }
+    if next.status() == BoardStatus::Checkmate {
+        score += 20_000;
+    }
+    score
 }
 
 fn choose_easy(board: &Board, moves: &[ChessMove]) -> ChessMove {

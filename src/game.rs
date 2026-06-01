@@ -217,8 +217,6 @@ impl GameController {
 
         if self.game_mode == GameMode::Puzzles && !self.is_puzzle_solved {
             self.advance_puzzle();
-        } else if self.should_auto_bot_move() {
-            self.make_bot_move();
         }
 
         true
@@ -481,7 +479,7 @@ impl GameController {
         }
     }
 
-    fn should_auto_bot_move(&self) -> bool {
+    pub fn should_auto_bot_move(&self) -> bool {
         matches!(
             self.game_mode,
             GameMode::PlayerVsAi | GameMode::Story | GameMode::Boss

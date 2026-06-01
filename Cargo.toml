@@ -1,8 +1,15 @@
 [package]
 name = "grandmaster-3d-chess-rs"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
-publish = false
+authors = ["Aarambh Dev Hub"]
+description = "Frontend-only Rust/WASM 3D chess game built with Leptos, Scenix, Animato, and the Rust chess crate."
+license = "MIT"
+repository = "https://github.com/AarambhDevHub/grandmaster-3d-chess-rs"
+homepage = "https://aarambhdevhub.github.io/grandmaster-3d-chess-rs/"
+readme = "README.md"
+keywords = ["rust", "wasm", "leptos", "chess", "webgl"]
+categories = ["games", "wasm", "web-programming"]
 
 [dependencies]
 animato = { version = "1.4.0", features = ["leptos-csr", "wasm"] }

@@ -295,11 +295,18 @@ canvas {
   border-color: transparent;
   background: transparent;
   color: #94a3b8;
+  font-weight: 900;
 }
 
 .settings-link:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+
+.settings-link .ui-icon,
+.icon-btn .settings-gear {
+  color: #93c5fd;
+  stroke-width: 2;
 }
 
 .mode-button {
@@ -362,25 +369,21 @@ canvas {
   border-color: #818cf8;
 }
 
-.tabs {
-  display: flex;
-  gap: 8px;
-}
-
-.tab {
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: #94a3b8;
-  background: transparent;
-  font-size: 12px;
+.settings-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #f8fafc;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
   font-weight: 900;
-  text-transform: uppercase;
+  line-height: 1;
 }
 
-.tab.active {
-  background: #4f46e5;
-  color: #fff;
+.settings-title .ui-icon {
+  width: 24px;
+  height: 24px;
+  color: #93c5fd;
 }
 
 .grid-2,
@@ -860,10 +863,29 @@ canvas {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
   color: #64748b;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.footer-version a {
+  color: #93c5fd;
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease;
+}
+
+.footer-version a:hover {
+  color: #f8fafc;
+  text-shadow: 0 0 14px rgba(147, 197, 253, 0.72);
 }
 
 .error-banner {

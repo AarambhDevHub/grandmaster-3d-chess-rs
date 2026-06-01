@@ -5,8 +5,8 @@ use crate::constants::{
     ALL_EMOTES, BANNER_COLORS, PROFILE_ICONS, SAMPLE_PUZZLES, STORY_CHAPTERS, theme_config,
 };
 use crate::types::{
-    AppScreen, BoardMutation, CameraMode, Difficulty, GameMode, GraphicsQuality, PieceKind,
-    SkinType, Theme, TimeOfDay, Weather,
+    AppScreen, CameraMode, Difficulty, GameMode, GraphicsQuality, PieceKind, SkinType, Theme,
+    TimeOfDay, Weather,
 };
 
 #[component]
@@ -127,7 +127,15 @@ fn MainMenu() -> impl IntoView {
                             </button>
                         </div>
                     </div>
-                    <div class="footer-version">"VERSION 3.0 - WEBGL ENABLED - LEPTOS"</div>
+                    <div class="footer-version">
+                        <span>"VERSION 1.0"</span>
+                        <span>"- "</span>
+                        <a href="https://leptos.dev/" target="_blank" rel="noopener noreferrer">"LEPTOS"</a>
+                        <span>"- "</span>
+                        <a href="https://github.com/AarambhDevHub/scenix" target="_blank" rel="noopener noreferrer">"SCENIX"</a>
+                        <span>"- "</span>
+                        <a href="https://github.com/AarambhDevHub/animato" target="_blank" rel="noopener noreferrer">"ANIMATO"</a>
+                    </div>
                 </div>
             }.into_any(),
         }}
@@ -167,9 +175,9 @@ fn IconPalette() -> impl IntoView {
 #[component]
 fn IconSettings() -> impl IntoView {
     view! {
-        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-2 .2 7.3 7.3 0 0 1-1.8 1 1.7 1.7 0 0 0-1.1 1.5V23H8.8v-.2a1.7 1.7 0 0 0-1.1-1.5 7.3 7.3 0 0 1-1.8-1 1.7 1.7 0 0 0-2-.2l-.2.1-2-3.4.1-.1a1.7 1.7 0 0 0 .3-1.9 7.5 7.5 0 0 1 0-2 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 2-.2 7.3 7.3 0 0 1 1.8-1 1.7 1.7 0 0 0 1.1-1.5V1h3.9v.2a1.7 1.7 0 0 0 1.1 1.5 7.3 7.3 0 0 1 1.8 1 1.7 1.7 0 0 0 2 .2l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 7.5 7.5 0 0 1 0 2Z" />
+        <svg class="ui-icon settings-gear" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9.7 3.4 10.4 2h3.2l.7 1.4c.6.2 1.1.4 1.7.7l1.5-.5 2.2 2.2-.5 1.5c.3.5.5 1.1.7 1.7l1.4.7v3.2l-1.4.7a7.5 7.5 0 0 1-.7 1.7l.5 1.5-2.2 2.2-1.5-.5c-.5.3-1.1.5-1.7.7l-.7 1.4h-3.2l-.7-1.4a7.5 7.5 0 0 1-1.7-.7l-1.5.5-2.2-2.2.5-1.5a7.5 7.5 0 0 1-.7-1.7L2.7 13V9.8l1.4-.7c.2-.6.4-1.2.7-1.7l-.5-1.5 2.2-2.2 1.5.5c.5-.4 1.1-.6 1.7-.8Z" />
+            <circle cx="12" cy="11.4" r="3" />
         </svg>
     }
 }
@@ -239,7 +247,7 @@ fn Hud() -> impl IntoView {
                 <div class="row">
                     <button class="btn icon-btn" title="Orbit" on:click=move |_| ctx.state.update(|m| m.game.camera_mode = CameraMode::Orbit)>"O"</button>
                     <button class="btn icon-btn" title="Top" on:click=move |_| ctx.state.update(|m| m.game.camera_mode = CameraMode::Top)>"T"</button>
-                    <button class="btn icon-btn" title="Settings" on:click=move |_| ctx.state.update(|m| m.show_settings = true)>"S"</button>
+                    <button class="btn icon-btn" title="Settings" on:click=move |_| ctx.state.update(|m| m.show_settings = true)><IconSettings /></button>
                     {move || if ctx.state.get().game.game_mode == GameMode::Puzzles && !ctx.state.get().game.is_puzzle_solved {
                         view! { <button class="btn icon-btn btn-indigo" title="Hint" on:click=move |_| ctx.state.update(|m| m.game.show_puzzle_hint())>"?"</button> }.into_any()
                     } else { view! {}.into_any() }}
@@ -561,23 +569,18 @@ fn CustomizationMenu() -> impl IntoView {
 #[component]
 fn SettingsModal() -> impl IntoView {
     let ctx = expect_context::<AppContext>();
-    let (tab, set_tab) = signal("visuals".to_string());
     view! {
         <div class="modal-backdrop">
             <div class="panel panel-wide">
                 <div class="panel-header split">
-                    <div class="tabs">
-                        <button class=move || tab_class(&tab.get(), "visuals") on:click=move |_| set_tab.set("visuals".to_string())>"Visuals and Audio"</button>
-                        <button class=move || tab_class(&tab.get(), "gameplay") on:click=move |_| set_tab.set("gameplay".to_string())>"Gameplay"</button>
+                    <div class="settings-title">
+                        <IconSettings />
+                        <span>"Settings"</span>
                     </div>
                     <button class="btn icon-btn" on:click=move |_| ctx.state.update(|m| m.show_settings = false)>"X"</button>
                 </div>
                 <div class="panel-body stack">
-                    {move || if tab.get() == "visuals" {
-                        view! { <VisualSettings /> }.into_any()
-                    } else {
-                        view! { <GameplaySettings /> }.into_any()
-                    }}
+                    <VisualSettings />
                     <button class="btn btn-indigo" on:click=move |_| ctx.state.update(|m| m.show_settings = false)>"Save Changes"</button>
                 </div>
             </div>
@@ -603,18 +606,14 @@ fn VisualSettings() -> impl IntoView {
             </For>
         </div>
         <h3 class="setting-section-title pink"><IconVolume />"Audio Experience"</h3>
-        <div class="grid-3">
+        <div class="grid-2">
             <Toggle label="SFX and Ambience" get=move || ctx.state.get().settings.enable_sounds set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_sounds = !s.enable_sounds)) />
-            <Toggle label="Voice Overs" get=move || ctx.state.get().settings.enable_voice_overs set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_voice_overs = !s.enable_voice_overs)) />
-            <Toggle label="Story Narrator" get=move || ctx.state.get().settings.enable_story_vo set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_story_vo = !s.enable_story_vo)) />
         </div>
         <h3 class="setting-section-title indigo"><IconVideo />"Graphics"</h3>
         <div class="grid-3">
             <Toggle label="Animations" get=move || ctx.state.get().settings.show_animations set=move |_| ctx.state.update(|m| m.update_settings(|s| s.show_animations = !s.show_animations)) />
             <Toggle label="Particles and VFX" get=move || ctx.state.get().settings.show_vfx set=move |_| ctx.state.update(|m| m.update_settings(|s| s.show_vfx = !s.show_vfx)) />
             <Toggle label="Cinematic Kill-Cam" get=move || ctx.state.get().settings.cinematic_camera set=move |_| ctx.state.update(|m| m.update_settings(|s| s.cinematic_camera = !s.cinematic_camera)) />
-            <Toggle label="Royal Cutscenes" get=move || ctx.state.get().settings.enable_cutscenes set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_cutscenes = !s.enable_cutscenes)) />
-            <Toggle label="Performance Mode" get=move || ctx.state.get().settings.performance_mode set=move |_| ctx.state.update(|m| m.update_settings(|s| s.performance_mode = !s.performance_mode)) />
         </div>
         <div class="button-row">
             <For each=move || [GraphicsQuality::Low, GraphicsQuality::Medium, GraphicsQuality::High].to_vec() key=|q| format!("{q:?}") let:q>
@@ -643,28 +642,6 @@ fn VisualSettings() -> impl IntoView {
                 <option value=weather.label()>{weather.label()}</option>
             </For>
         </select>
-    }
-}
-
-#[component]
-fn GameplaySettings() -> impl IntoView {
-    let ctx = expect_context::<AppContext>();
-    view! {
-        <h3>"Board Mutations"</h3>
-        <div class="grid-3">
-            <For each=move || BoardMutation::ALL.to_vec() key=|m| m.label() let:mutation>
-                <button class=move || if ctx.state.get().settings.board_mutation == mutation { "option-card active" } else { "option-card" }
-                    on:click=move |_| ctx.state.update(|m| m.update_settings(|s| s.board_mutation = mutation))>
-                    {mutation.label()}
-                </button>
-            </For>
-        </div>
-        <div class="grid-2">
-            <Toggle label="AI Coach Mode" get=move || ctx.state.get().settings.enable_coach set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_coach = !s.enable_coach)) />
-            <Toggle label="Magic Skills VFX" get=move || ctx.state.get().settings.enable_magic_skills set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_magic_skills = !s.enable_magic_skills)) />
-            <Toggle label="Physics Death" get=move || ctx.state.get().settings.enable_physics_death set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_physics_death = !s.enable_physics_death)) />
-            <Toggle label="Victory Emotes" get=move || ctx.state.get().settings.enable_emotes set=move |_| ctx.state.update(|m| m.update_settings(|s| s.enable_emotes = !s.enable_emotes)) />
-        </div>
     }
 }
 
@@ -824,10 +801,6 @@ fn difficulty_class(active: Difficulty, item: Difficulty) -> &'static str {
     } else {
         "btn"
     }
-}
-
-fn tab_class(active: &str, item: &str) -> &'static str {
-    if active == item { "tab active" } else { "tab" }
 }
 
 fn skin_icon(skin: SkinType) -> &'static str {

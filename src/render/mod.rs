@@ -136,6 +136,7 @@ mod wasm_impl {
         torus_geometry, wgpu,
     };
     use wasm_bindgen::JsCast;
+    use wasm_bindgen::closure::Closure;
     use wasm_bindgen::prelude::*;
     use web_sys::{
         CanvasRenderingContext2d, WebGlBuffer, WebGlProgram, WebGlRenderingContext as Gl,
@@ -287,6 +288,7 @@ mod wasm_impl {
         last_pointer: Option<(f32, f32)>,
         last_action_key: String,
         move_timer: f32,
+        move_duration: f32,
     }
 
     struct GlMesh {
@@ -357,6 +359,7 @@ mod wasm_impl {
                 last_pointer: None,
                 last_action_key: String::new(),
                 move_timer: 0.0,
+                move_duration: 0.9,
             })
         }
 
@@ -447,6 +450,28 @@ mod wasm_impl {
         }
 
         fn camera_for(&self, model: &AppModel) -> CameraSpec {
+            if model.settings.cinematic_camera
+                && model.game.cinematic_mode == CinematicMode::KillCam
+                && self.move_timer > 0.0
+            {
+                if let Some(action) = &model.game.last_action {
+                    if action.captured_piece.is_some() {
+                        if let Some((file, rank)) = square_to_file_rank(&action.to) {
+                            let [x, z] = webgl_square_position(file, rank);
+                            let progress = self.move_progress();
+                            let side = if x >= 0.0 { -1.0 } else { 1.0 };
+                            return CameraSpec {
+                                eye: [
+                                    x + side * (4.2 - progress * 0.8),
+                                    3.9 + progress.sin() * 0.4,
+                                    z + 4.3,
+                                ],
+                                target: [x, 0.45, z],
+                            };
+                        }
+                    }
+                }
+            }
             webgl_camera(
                 model,
                 self.phase,
@@ -474,13 +499,24 @@ mod wasm_impl {
                 .unwrap_or_default();
             if action_key != self.last_action_key {
                 self.last_action_key = action_key;
-                self.move_timer = if model.game.last_action.is_some() {
-                    0.95
+                if let Some(action) = &model.game.last_action {
+                    self.move_duration =
+                        move_duration_for(action.piece, action.captured_piece.is_some());
+                    self.move_timer = self.move_duration;
                 } else {
-                    0.0
-                };
+                    self.move_duration = 0.9;
+                    self.move_timer = 0.0;
+                }
             } else {
                 self.move_timer = (self.move_timer - dt).max(0.0);
+            }
+        }
+
+        fn move_progress(&self) -> f32 {
+            if self.move_duration <= 0.0 {
+                1.0
+            } else {
+                (1.0 - self.move_timer / self.move_duration).clamp(0.0, 1.0)
             }
         }
 
@@ -598,41 +634,43 @@ mod wasm_impl {
             for piece in pieces {
                 self.draw_piece(vp, model, &piece);
             }
+            self.draw_capture_phantom(vp, model);
         }
 
         fn draw_piece(&self, vp: [f32; 16], model: &AppModel, piece: &ChessPieceView) {
             let Some((file, rank)) = square_to_file_rank(&piece.square) else {
                 return;
             };
-            let [x, z] = webgl_square_position(file, rank);
+            let [mut x, mut z] = webgl_square_position(file, rank);
             let is_last_arrival = model
                 .game
                 .last_action
                 .as_ref()
                 .is_some_and(|action| action.to == piece.square);
-            let (move_lift, attack_tilt, arrival_scale) =
-                if is_last_arrival && self.move_timer > 0.0 && model.settings.show_animations {
-                    let progress = (1.0 - self.move_timer / 0.95).clamp(0.0, 1.0);
-                    let arc = (progress * std::f32::consts::PI).sin();
-                    let lift = if piece.kind == PieceKind::Knight {
-                        arc * 1.15
-                    } else {
-                        arc * 0.52
-                    };
-                    let tilt = if model
-                        .game
-                        .last_action
-                        .as_ref()
-                        .is_some_and(|action| action.captured_piece.is_some())
-                    {
-                        (1.0 - progress) * 0.38
-                    } else {
-                        0.0
-                    };
-                    (lift, tilt, 1.0 + arc * 0.08)
-                } else {
-                    (0.0, 0.0, 1.0)
-                };
+            let mut move_lift = 0.0;
+            let mut attack_tilt = 0.0;
+            let mut arrival_scale = 1.0;
+            if is_last_arrival
+                && self.move_timer > 0.0
+                && model.settings.show_animations
+                && let Some(action) = &model.game.last_action
+                && let Some((from_file, from_rank)) = square_to_file_rank(&action.from)
+            {
+                let [sx, sz] = webgl_square_position(from_file, from_rank);
+                let progress = self.move_progress();
+                let pose = animated_move_pose(
+                    piece.kind,
+                    action.captured_piece.is_some(),
+                    progress,
+                    [sx, sz],
+                    [x, z],
+                );
+                x = pose.x;
+                z = pose.z;
+                move_lift = pose.lift;
+                attack_tilt = pose.tilt;
+                arrival_scale = pose.scale;
+            }
             let skin = skin_config(model.active_skin);
             let (main, trim, accent) = if piece.color == PlayerColor::White {
                 (rgb_u32(skin.white), [0.96, 0.64, 0.08], [0.92, 0.94, 0.96])
@@ -802,6 +840,73 @@ mod wasm_impl {
             }
         }
 
+        fn draw_capture_phantom(&self, vp: [f32; 16], model: &AppModel) {
+            if self.move_timer <= 0.0 || !model.settings.show_animations {
+                return;
+            }
+            let Some(action) = &model.game.last_action else {
+                return;
+            };
+            let Some(kind) = action.captured_piece else {
+                return;
+            };
+            let square = action.captured_square.as_deref().unwrap_or(&action.to);
+            let Some((file, rank)) = square_to_file_rank(square) else {
+                return;
+            };
+            let [x, z] = webgl_square_position(file, rank);
+            let progress = self.move_progress();
+            let fall = ease_in_cubic(progress);
+            let shrink = (1.0 - fall).max(0.04);
+            let scatter = progress * 0.52;
+            let y = 0.2 + (progress * std::f32::consts::PI).sin() * 0.8 - fall * 0.18;
+            let spin = progress * std::f32::consts::PI * 2.4;
+            let color = model.game.turn;
+            let skin = skin_config(model.active_skin);
+            let (main, trim) = if color == PlayerColor::White {
+                (rgb_u32(skin.white), [0.96, 0.64, 0.08])
+            } else {
+                (rgb_u32(skin.black), [0.48, 0.32, 0.92])
+            };
+
+            self.draw_mesh(
+                &self.cylinder,
+                vp,
+                transform(
+                    [x + scatter, y, z - scatter * 0.3],
+                    [spin, spin * 0.35, 0.35 + spin * 0.2],
+                    [0.46 * shrink, 0.16 * shrink, 0.46 * shrink],
+                ),
+                trim,
+            );
+            self.draw_mesh(
+                &self.cylinder,
+                vp,
+                transform(
+                    [x + scatter, y + 0.34 * shrink, z - scatter * 0.3],
+                    [spin + 0.55, spin * 0.45, 0.8],
+                    [0.3 * shrink, 0.58 * shrink, 0.3 * shrink],
+                ),
+                main,
+            );
+
+            let head_mesh = if kind == PieceKind::Bishop || kind == PieceKind::Queen {
+                &self.cone
+            } else {
+                &self.cube
+            };
+            self.draw_mesh(
+                head_mesh,
+                vp,
+                transform(
+                    [x - scatter * 0.6, y + 0.86 * shrink, z + scatter * 0.4],
+                    [spin * 0.7, spin, spin * 0.4],
+                    [0.26 * shrink, 0.26 * shrink, 0.26 * shrink],
+                ),
+                main,
+            );
+        }
+
         fn draw_move_vfx(&self, vp: [f32; 16], model: &AppModel) {
             if self.move_timer <= 0.0 || !model.settings.show_vfx {
                 return;
@@ -813,7 +918,7 @@ mod wasm_impl {
                 return;
             };
             let [x, z] = webgl_square_position(file, rank);
-            let progress = (1.0 - self.move_timer / 0.95).clamp(0.0, 1.0);
+            let progress = self.move_progress();
             let energy = 1.0 - progress;
             let count = if action.captured_piece.is_some() {
                 22
@@ -1503,6 +1608,114 @@ mod wasm_impl {
         [file as f32 * 1.5 - 5.25, 5.25 - rank as f32 * 1.5]
     }
 
+    #[derive(Clone, Copy)]
+    struct MovePose {
+        x: f32,
+        z: f32,
+        lift: f32,
+        tilt: f32,
+        scale: f32,
+    }
+
+    fn move_duration_for(kind: PieceKind, capture: bool) -> f32 {
+        if capture {
+            match kind {
+                PieceKind::Pawn => 0.95,
+                PieceKind::Knight => 1.05,
+                PieceKind::Bishop => 1.15,
+                PieceKind::Rook => 1.1,
+                PieceKind::Queen => 0.95,
+                PieceKind::King => 1.2,
+            }
+        } else if kind == PieceKind::Knight {
+            0.82
+        } else {
+            0.68
+        }
+    }
+
+    fn animated_move_pose(
+        kind: PieceKind,
+        capture: bool,
+        progress: f32,
+        start: [f32; 2],
+        end: [f32; 2],
+    ) -> MovePose {
+        if capture {
+            let dx = end[0] - start[0];
+            let dz = end[1] - start[1];
+            let len = (dx * dx + dz * dz).sqrt().max(0.001);
+            let nx = dx / len;
+            let nz = dz / len;
+            let windup = [start[0] - nx * 0.46, start[1] - nz * 0.46];
+            let (x, z, lift) = if progress < 0.28 {
+                let t = ease_in_out(progress / 0.28);
+                (
+                    lerp(start[0], windup[0], t),
+                    lerp(start[1], windup[1], t),
+                    t * 0.1,
+                )
+            } else if progress < 0.78 {
+                let t = ease_in_cubic((progress - 0.28) / 0.5);
+                let arc = (t * std::f32::consts::PI).sin();
+                let lift = match kind {
+                    PieceKind::Knight => arc * 1.8,
+                    PieceKind::Bishop | PieceKind::Queen => arc * 1.25,
+                    PieceKind::Rook | PieceKind::King => arc * 0.55,
+                    PieceKind::Pawn => arc * 0.75,
+                };
+                (lerp(windup[0], end[0], t), lerp(windup[1], end[1], t), lift)
+            } else {
+                let t = ease_out_cubic((progress - 0.78) / 0.22);
+                (end[0], end[1], (1.0 - t) * 0.25)
+            };
+            MovePose {
+                x,
+                z,
+                lift,
+                tilt: (1.0 - progress).max(0.0) * 0.6,
+                scale: 1.0 + (progress * std::f32::consts::PI).sin() * 0.12,
+            }
+        } else {
+            let t = ease_in_out(progress);
+            let arc = (t * std::f32::consts::PI).sin();
+            MovePose {
+                x: lerp(start[0], end[0], t),
+                z: lerp(start[1], end[1], t),
+                lift: if kind == PieceKind::Knight {
+                    arc * 1.35
+                } else {
+                    arc * 0.48
+                },
+                tilt: if kind == PieceKind::Knight {
+                    arc * 0.28
+                } else {
+                    0.0
+                },
+                scale: 1.0 + arc * 0.06,
+            }
+        }
+    }
+
+    fn lerp(a: f32, b: f32, t: f32) -> f32 {
+        a + (b - a) * t.clamp(0.0, 1.0)
+    }
+
+    fn ease_in_out(t: f32) -> f32 {
+        let t = t.clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    }
+
+    fn ease_in_cubic(t: f32) -> f32 {
+        let t = t.clamp(0.0, 1.0);
+        t * t * t
+    }
+
+    fn ease_out_cubic(t: f32) -> f32 {
+        let t = t.clamp(0.0, 1.0);
+        1.0 - (1.0 - t).powi(3)
+    }
+
     fn pick_webgl_square(
         camera: CameraSpec,
         css_width: f32,
@@ -1720,6 +1933,7 @@ mod wasm_impl {
 
     fn apply_square_click(state: RwSignal<AppModel>, audio: &AudioSystem, square: &str) {
         let mut move_sound = None;
+        let mut schedule_bot = false;
         state.update(|model| {
             let before_capture_count =
                 model.game.captured.white.len() + model.game.captured.black.len();
@@ -1733,6 +1947,7 @@ mod wasm_impl {
                     after_capture_count > before_capture_count,
                     model.game.is_game_over,
                 ));
+                schedule_bot = model.game.should_auto_bot_move();
             }
         });
         if let Some((enabled, captured, game_over)) = move_sound {
@@ -1744,6 +1959,48 @@ mod wasm_impl {
                 audio.play_move(enabled);
             }
         }
+        if schedule_bot {
+            schedule_bot_move(state, audio.clone());
+        }
+    }
+
+    fn schedule_bot_move(state: RwSignal<AppModel>, audio: AudioSystem) {
+        let callback = Closure::once(move || {
+            let mut move_sound = None;
+            state.update(|model| {
+                if !model.game.should_auto_bot_move() {
+                    return;
+                }
+                let before_capture_count =
+                    model.game.captured.white.len() + model.game.captured.black.len();
+                if model.game.make_bot_move() {
+                    let after_capture_count =
+                        model.game.captured.white.len() + model.game.captured.black.len();
+                    model.after_move();
+                    move_sound = Some((
+                        model.settings.enable_sounds,
+                        after_capture_count > before_capture_count,
+                        model.game.is_game_over,
+                    ));
+                }
+            });
+            if let Some((enabled, captured, game_over)) = move_sound {
+                if game_over {
+                    audio.play_win(enabled);
+                } else if captured {
+                    audio.play_capture(enabled);
+                } else {
+                    audio.play_move(enabled);
+                }
+            }
+        });
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                callback.as_ref().unchecked_ref(),
+                820,
+            );
+        }
+        callback.forget();
     }
 
     fn fallback_context(

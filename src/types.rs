@@ -76,14 +76,6 @@ pub enum Difficulty {
 }
 
 impl Difficulty {
-    pub const fn depth(self) -> u8 {
-        match self {
-            Self::Easy => 1,
-            Self::Medium => 2,
-            Self::Hard => 3,
-        }
-    }
-
     pub const fn label(self) -> &'static str {
         match self {
             Self::Easy => "Easy",
@@ -192,28 +184,6 @@ pub enum BoardMutation {
     FogOfWar,
     Exploding,
     Portals,
-}
-
-impl BoardMutation {
-    pub const ALL: [Self; 6] = [
-        Self::None,
-        Self::Hex,
-        Self::Giant,
-        Self::FogOfWar,
-        Self::Exploding,
-        Self::Portals,
-    ];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::None => "None",
-            Self::Hex => "Hex",
-            Self::Giant => "Giant",
-            Self::FogOfWar => "FogOfWar",
-            Self::Exploding => "Exploding",
-            Self::Portals => "Portals",
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
