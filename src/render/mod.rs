@@ -278,6 +278,7 @@ mod wasm_impl {
         audio: AudioSystem,
         last_timestamp: Option<f64>,
         phase: f32,
+        menu_orbit_phase: f32,
         width: u32,
         height: u32,
         orbit_yaw: f32,
@@ -349,6 +350,7 @@ mod wasm_impl {
                 audio,
                 last_timestamp: None,
                 phase: 0.0,
+                menu_orbit_phase: 0.0,
                 width,
                 height,
                 orbit_yaw: 0.0,
@@ -370,6 +372,8 @@ mod wasm_impl {
                 .unwrap_or(1.0 / 60.0);
             self.last_timestamp = Some(timestamp_ms);
             self.phase = (self.phase + dt * 0.42) % std::f32::consts::TAU;
+            self.menu_orbit_phase =
+                (self.menu_orbit_phase + dt * 0.075) % std::f32::consts::TAU;
             self.resize();
 
             let model = self.state.get_untracked();
@@ -474,7 +478,7 @@ mod wasm_impl {
             }
             webgl_camera(
                 model,
-                self.phase,
+                self.menu_orbit_phase,
                 Some((self.orbit_yaw, self.orbit_pitch, self.orbit_distance)),
             )
         }
@@ -3226,7 +3230,7 @@ mod wasm_impl {
 
     fn desired_camera(model: &AppModel) -> Vec3 {
         if model.screen == crate::types::AppScreen::Menu {
-            let t = js_sys::Date::now() as f32 * 0.0002;
+            let t = js_sys::Date::now() as f32 * 0.000075;
             return Vec3::new(t.sin() * 22.0, 14.0, t.cos() * 22.0);
         }
         if model.game.cinematic_mode == CinematicMode::GiantKingEnding {
